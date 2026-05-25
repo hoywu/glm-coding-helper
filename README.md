@@ -13,6 +13,16 @@
 - CPU worker 数自动估算，也支持手动设置
 - Windows 一键 bootstrap，适合没有 Python 环境的新手
 
+
+
+## 致谢
+
+本项目的油猴前端脚本是在 Greasy Fork 用户 `mumumi` 的《GLM Coding Plan抢购助手》基础上二次开发而来：
+
+https://greasyfork.org/zh-CN/scripts/572157-glm-coding-plan%E6%8A%A2%E8%B4%AD%E5%8A%A9%E6%89%8B
+
+感谢原作者长期维护和分享。原脚本采用 GNU GPLv3 许可证；本仓库继续保留相同许可证声明，并在其基础上增加本地 CPU/GPU OCR 后端、自动验证码识别和开源部署脚本。
+
 ## 演示
 
 https://github.com/user-attachments/assets/e1a56d07-5c4d-4aa1-a567-909dd25bd037

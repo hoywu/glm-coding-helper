@@ -1,4 +1,4 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name         GLM Coding Helper
 // @namespace    http://tampermonkey.net/
 // @version      8.5
@@ -16,6 +16,8 @@
 // @grant        GM_xmlhttpRequest
 // @run-at       document-start
 // @license      GNU GPLv3
+// @source       https://greasyfork.org/zh-CN/scripts/572157-glm-coding-plan%E6%8A%A2%E8%B4%AD%E5%8A%A9%E6%89%8B
+// @credit       Based on mumumi's GLM Coding Plan helper; thanks to the original author.
 // ==/UserScript==
  
 (function () {
