@@ -12,13 +12,13 @@ $env:PYTHONIOENCODING = "utf-8"
 
 $VenvPython = Join-Path $Root ".venv_paddle\Scripts\python.exe"
 if (-not (Test-Path $VenvPython)) {
-    throw "Missing .venv_paddle. Run 首次安装环境.cmd first."
+    throw "Missing .venv_paddle. Run install-env.cmd first."
 }
 
 Write-Host "Checking portable CPU environment..."
 & $VenvPython -c "import ultralytics, paddleocr, paddlex, cv2, PIL, numpy; print('portable imports ok')"
 if ($LASTEXITCODE -ne 0) {
-    throw "The local .venv_paddle is incomplete. Run 首次安装环境.cmd again, then rerun this script."
+    throw "The local .venv_paddle is incomplete. Run install-env.cmd again, then rerun this script."
 }
 
 $Weight = Join-Path $Root "models\weights\yolo-captcha-detector.pt"
@@ -42,8 +42,6 @@ $Include = @(
     "start-backend.cmd",
     "install-env.cmd",
     "one-click-start.cmd",
-    "启动后端.cmd",
-    "首次安装环境.cmd",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -54,6 +52,14 @@ $Include = @(
     ".paddlex_cache_cpu",
     ".paddle_home"
 )
+
+$KnownRootCmdItems = @("start-backend.cmd", "install-env.cmd", "one-click-start.cmd")
+$ExtraRootCmdItems = Get-ChildItem -LiteralPath $Root -Filter "*.cmd" -File |
+    Where-Object { $KnownRootCmdItems -notcontains $_.Name } |
+    ForEach-Object { $_.Name }
+foreach ($item in $ExtraRootCmdItems) {
+    $Include += $item
+}
 
 foreach ($Item in $Include) {
     $Src = Join-Path $Root $Item
@@ -77,8 +83,8 @@ $Guide = @"
 GLM Coding Helper portable CPU package
 
 1. Install or update Tampermonkey script from glm-coding-helper.user.js.
-2. Double-click start-backend.cmd or 启动后端.cmd.
-3. Open https://www.bigmodel.cn/glm-coding?ic=9GXWL9KCGZ.
+2. Double-click start-backend.cmd, one-click-start.cmd, or the localized start shortcut if present.
+3. Open the GLM Coding page from your normal browser session.
 
 This package includes the CPU Python environment and local model files.
 "@
