@@ -14,9 +14,11 @@ Write-Host ""
 $Python = ""
 if (Test-Path "$Root\venv\Scripts\python.exe") {
     $Python = "$Root\venv\Scripts\python.exe"
+} elseif (Test-Path "$Root\.venv_paddle_gpu\Scripts\python.exe") {
+    $Python = "$Root\.venv_paddle_gpu\Scripts\python.exe"
 } elseif (Test-Path "$Root\.venv_paddle\Scripts\python.exe") {
     $Python = "$Root\.venv_paddle\Scripts\python.exe"
-} else {
+}else {
     Write-Host "[失败] 未找到 Python 虚拟环境，请先运行安装脚本。" -ForegroundColor Red
     Write-Host "[FAIL] No Python venv found. Run setup first (one-click-start.cmd / install-env.cmd)." -ForegroundColor Red
     Read-Host "按 Enter 退出"
