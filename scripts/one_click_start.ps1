@@ -12,6 +12,31 @@ Set-Location $Root
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
+function Assert-RequiredFiles {
+    $required = @(
+        "scripts\bootstrap_windows.ps1",
+        "scripts\start_backend.ps1",
+        "scripts\setup_backend.py",
+        "requirements-backend-cpu.txt",
+        "requirements-backend-gpu.txt"
+    )
+    $missing = @()
+    foreach ($rel in $required) {
+        if (-not (Test-Path (Join-Path $Root $rel))) {
+            $missing += $rel
+        }
+    }
+    if ($missing.Count -gt 0) {
+        Write-Host "[FAIL] Release package is incomplete. Missing files:" -ForegroundColor Red
+        foreach ($item in $missing) {
+            Write-Host "       - $item" -ForegroundColor Red
+        }
+        Write-Host "Please re-extract the full latest release zip and retry." -ForegroundColor Yellow
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+}
+
 function Test-PythonImports {
     param(
         [string]$PythonPath,
@@ -33,30 +58,13 @@ function Has-NvidiaGpu {
     return $LASTEXITCODE -eq 0
 }
 
-$InstallTarget = $Target
-if ($InstallTarget -eq "auto") {
-    $InstallTarget = if (Has-NvidiaGpu) { "gpu" } else { "cpu" }
-}
-$StartMode = if ($Target -eq "auto") { "auto" } else { $InstallTarget }
-
-$CpuPython = Join-Path $Root ".venv_paddle\Scripts\python.exe"
-$GpuPython = Join-Path $Root ".venv_paddle_gpu\Scripts\python.exe"
-$ImportCode = "import ultralytics, paddleocr, paddlex, cv2, PIL, numpy"
-
-$Ready = $false
-$SelectedPython = ""
-if ($InstallTarget -eq "gpu") {
-    $SelectedPython = $GpuPython
-    $Ready = Test-PythonImports $GpuPython $ImportCode
-} else {
-    $SelectedPython = $CpuPython
-    $Ready = Test-PythonImports $CpuPython $ImportCode
-}
-
-if (-not $Ready) {
-    Write-Host "Backend environment is missing or incomplete (PIL/cv2/numpy etc). Installing $InstallTarget environment..."
-    $argsList = @("-Target", $InstallTarget)
-    if ($SelectedPython -and (Test-Path $SelectedPython)) {
+function Invoke-Bootstrap {
+    param(
+        [string]$BootstrapTarget,
+        [string]$PythonPath
+    )
+    $argsList = @("-Target", $BootstrapTarget)
+    if ($PythonPath -and (Test-Path $PythonPath)) {
         Write-Host "Existing backend environment failed import checks. Recreating it..."
         $argsList += "-Recreate"
     }
@@ -65,16 +73,43 @@ if (-not $Ready) {
         $argsList += $arg
     }
     & powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\bootstrap_windows.ps1" @argsList
+    return $LASTEXITCODE
+}
 
-    # 修复后重新验证
-    if ($InstallTarget -eq "gpu") {
-        $Ready = Test-PythonImports $GpuPython $ImportCode
-    } else {
-        $Ready = Test-PythonImports $CpuPython $ImportCode
+Assert-RequiredFiles
+
+$InstallTarget = $Target
+if ($InstallTarget -eq "auto") {
+    $InstallTarget = if (Has-NvidiaGpu) { "gpu" } else { "cpu" }
+}
+
+$CpuPython = Join-Path $Root ".venv_paddle\Scripts\python.exe"
+$GpuPython = Join-Path $Root ".venv_paddle_gpu\Scripts\python.exe"
+$ImportCode = "import ultralytics, paddleocr, paddlex, cv2, PIL, numpy"
+
+$SelectedPython = if ($InstallTarget -eq "gpu") { $GpuPython } else { $CpuPython }
+$Ready = Test-PythonImports $SelectedPython $ImportCode
+
+if (-not $Ready) {
+    Write-Host "Backend environment is missing or incomplete (PIL/cv2/numpy etc). Installing $InstallTarget environment..."
+    $bootstrapExit = Invoke-Bootstrap -BootstrapTarget $InstallTarget -PythonPath $SelectedPython
+    $SelectedPython = if ($InstallTarget -eq "gpu") { $GpuPython } else { $CpuPython }
+    $Ready = Test-PythonImports $SelectedPython $ImportCode
+
+    if (($bootstrapExit -ne 0 -or -not $Ready) -and $Target -eq "auto" -and $InstallTarget -eq "gpu") {
+        Write-Host "[WARN] GPU bootstrap failed or remained incomplete. Falling back to CPU environment..." -ForegroundColor Yellow
+        $InstallTarget = "cpu"
+        $SelectedPython = $CpuPython
+        $bootstrapExit = Invoke-Bootstrap -BootstrapTarget "cpu" -PythonPath $SelectedPython
+        $Ready = Test-PythonImports $SelectedPython $ImportCode
     }
+
     if (-not $Ready) {
         Write-Host "[FAIL] Backend environment repair failed. Required deps still missing." -ForegroundColor Red
-        Write-Host "       Try running one-click-start.cmd manually." -ForegroundColor Red
+        if ($Target -eq "auto") {
+            Write-Host "       Auto mode already attempted GPU/CPU fallback." -ForegroundColor Red
+        }
+        Write-Host "       Try re-extracting the latest release and rerun one-click-start.cmd." -ForegroundColor Red
         Read-Host "Press Enter to exit"
         exit 1
     }
@@ -82,19 +117,17 @@ if (-not $Ready) {
 
 if ($Target -eq "auto" -and $InstallTarget -eq "gpu" -and -not (Test-PythonImports $CpuPython $ImportCode)) {
     Write-Host "CPU fallback environment is missing. Installing CPU environment for auto fallback..."
-    $fallbackArgs = @("-Target", "cpu")
-    foreach ($arg in $PipArg) {
-        $fallbackArgs += "-PipArg"
-        $fallbackArgs += $arg
+    $fallbackExit = Invoke-Bootstrap -BootstrapTarget "cpu" -PythonPath $CpuPython
+    if ($fallbackExit -ne 0) {
+        Write-Host "[WARN] CPU fallback environment installation failed. Auto mode will still try GPU first." -ForegroundColor Yellow
     }
-    & powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\bootstrap_windows.ps1" @fallbackArgs
 }
 
-# ── 检查 pipeline 后端依赖（非阻塞，仅提示）─────────────────
 $PipelineDepsOk = Test-PythonImports $SelectedPython "import fastapi, uvicorn, psutil"
 if (-not $PipelineDepsOk) {
     Write-Host "[INFO] Pipeline backend deps (fastapi/uvicorn/psutil) not installed. Run start-backend-pipeline-gui.cmd to add them." -ForegroundColor Yellow
 }
 
+$StartMode = if ($Target -eq "auto") { "auto" } else { $InstallTarget }
 Write-Host "Starting backend in $StartMode mode on port $Port..."
 & powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start_backend.ps1" -Mode $StartMode -Port $Port
