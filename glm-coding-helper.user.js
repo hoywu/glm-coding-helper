@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         智谱 GLM Coding Plan 抢购助手 + 本地 OCR 自动验证码
 // @namespace    http://tampermonkey.net/
-// @version      22.8
+// @version      22.9
 // @description  GLM Coding Rush / 智谱 GLM Coding Plan 抢购助手，一键抢购油猴脚本 / Tampermonkey userscript，配合本地 CPU/GPU OCR 自动识别中文点选验证码并点击，支持多窗口并发、限流重试和支付页安全保护
 // @author       mumumi
 // @include      https://*bigmodel.cn/glm-coding*
@@ -563,6 +563,15 @@
     }
     function isRushTargetReached(now = Date.now()) {
         return CFG.RUSH_ENABLED && getRushRemainingMs(now) <= 0;
+    }
+    function readyModeText() {
+        if (CFG.AUTO_CLICK_SUB) return `自动点击订阅已开启，${autoClickSubHotkey()} 可关闭`;
+        if (CFG.RUSH_ENABLED) {
+            const remaining = Math.max(0, getRushRemainingMs());
+            if (remaining > 0) return `准备中：默认不主动点击订阅，按 ${autoClickSubHotkey()} 手动开启，或等待目标时间 <b>${fmt(remaining)}</b>`;
+            return '目标时间已到：允许自动点击订阅';
+        }
+        return `准备中：默认不主动点击订阅，按 ${autoClickSubHotkey()} 开启，或手动点击订阅`;
     }
     function medianRush(values) {
         const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -1182,7 +1191,7 @@
             taskTarget = { tab, pkg }; taskPhase = 'IDLE'; taskRLCount = 0;
             soldOutHits[`${tab}-${pkg}`] = 0;
             setS(tab, pkg, 0); state = 'TASK_UNIT';
-            setBar(`🎯 发现可购！${TABS_MAP[tab]} · ${PKGS_MAP[pkg]}，即将点击...`, '#389e0d');
+            setBar(`🎯 发现可购！${TABS_MAP[tab]} · ${PKGS_MAP[pkg]}，${readyModeText()}`, CFG.RUSH_ENABLED && !CFG.AUTO_CLICK_SUB ? '#722ed1' : '#389e0d');
             return;
         }
         if (isBusy(b)) {
@@ -1386,6 +1395,7 @@
         return true;
     }
     if (checkLogin()) {
+        setBar(`✅ 脚本已加载，${readyModeText()}`, CFG.RUSH_ENABLED && !CFG.AUTO_CLICK_SUB ? '#722ed1' : '#1677ff');
         calibrateRushLatency();
         setInterval(tick, CFG.CHECK_INTERVAL);
         const _startDOM = () => {
