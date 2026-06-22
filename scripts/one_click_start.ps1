@@ -150,15 +150,14 @@ function Invoke-Bootstrap {
     $logDir = Split-Path -Parent $logPath
     if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
     Write-Host "详细安装日志: $logPath"
-    # 直接在当前进程跑 bootstrap，输出实时到控制台（无管道缓冲，用户能看到 pip 进度）。
-    # 同时用 Start-Transcript 录日志（不影响控制台输出节奏）。
-    Start-Transcript -Path $logPath -Force | Out-Null
-    try {
-        & "$Root\scripts\bootstrap_windows.ps1" @argsList
-        $code = $LASTEXITCODE
-    } finally {
-        Stop-Transcript | Out-Null
-    }
+    # 用外部 powershell 进程跑 bootstrap（参数 splatting 在外部进程下可靠，
+    # 进程内 & script.ps1 @args 会把 "-Target" 当值而非参数名）。
+    # 不用 | Tee 管道（会缓冲，用户看不到 pip 进度）；子进程 stdout 直接继承当前控制台。
+    # 日志由 bootstrap 内部写（setup_backend.py 的 print 都带 flush=True）。
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "$Root\scripts\bootstrap_windows.ps1" @argsList
+    $code = $LASTEXITCODE
+    # 把退出码写进日志尾部，便于诊断
+    try { Add-Content -Path $logPath -Value "[one_click_start] bootstrap exit code: $code" -Encoding UTF8 } catch {}
     return $code
 }
 
