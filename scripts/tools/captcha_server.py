@@ -280,15 +280,25 @@ def recognize_captcha(image_path, prompt_chars, crop_rect=None):
         print(f"[CAPTURE] sending to worker: {image_path} chars={''.join(prompt_chars)}", flush=True)
         proc.stdin.write(req.encode("utf-8"))
         proc.stdin.flush()
-        print(f"[CAPTURE] waiting for worker result...", flush=True)
+        _t0 = time.perf_counter()
         try:
             result_line = _result_queue.get(timeout=90)
         except queue.Empty:
             print(f"[CAPTURE] worker timeout!", flush=True)
             _stop_worker_proc()
             return {"error": "worker timeout", "success": False}
-        print(f"[CAPTURE] got result: {result_line.decode()[:200]}", flush=True)
-        return json.loads(result_line)
+        _elapsed_ms = (time.perf_counter() - _t0) * 1000
+        _res = json.loads(result_line)
+        # 打印识别摘要（prompt → 结果 + 耗时），GUI 日志框可见
+        if _res.get("success"):
+            _p = "".join(_res.get("prompt", []))
+            print(f"[captcha] {_p} -> {_res.get('pred_text','?')} | "
+                  f"conf={_res.get('confidence',0):.2f} end-to-end={_elapsed_ms:.0f}ms "
+                  f"(worker total={_res.get('elapsed_ms','?')}ms yolo={_res.get('yolo_ms','?')}ms "
+                  f"ocr={_res.get('ocr_ms','?')}ms) | engine={_res.get('engine','?')}", flush=True)
+        else:
+            print(f"[captcha] FAIL: {_res.get('error','?')} ({_elapsed_ms:.0f}ms)", flush=True)
+        return _res
     except Exception as e:
         import traceback; traceback.print_exc()
         return {"error": str(e), "success": False}
