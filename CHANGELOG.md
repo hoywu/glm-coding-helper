@@ -3,6 +3,10 @@
 ## 2026-06-23
 
 - 发布用户脚本 v23.3：修复自动点击订阅后干等到 15 秒超时的问题。之前点击订阅后，若合成 click 事件没触发智谱前端弹验证码（按钮 DOM 已就绪但前端状态机还没准备好），主流程会一直停在 WAITING 干等到 `MODAL_WAIT=15000` 超时，浪费抢购黄金窗口。现在用"验证码 iframe 是否已拿到新 prompt+背景图"作为信号：iframe 脚本每次拿到新验证码（prompt 或背景图变化）时让 GM 计数器 `glm_captcha_seen_seq` 自增，主流程点击时记下基线，WAITING 阶段比对——计数器增长了说明验证码已弹出，耐心等识别；1.5 秒还没增长说明点击没触发验证码，立即回 IDLE 重试点订阅。计数器只增不减、无残留、无时序错乱。
+- 修复 PS 5.1 中文系统下 `.ps1` 脚本 ParserError（"Missing expression after ','"）：所有 `.ps1` 加 UTF-8 BOM，避免 PS 5.1 按 GBK 解析 UTF-8 中文字节导致语法解析崩溃。
+- 修复国内用户首次安装 backend 依赖时直连 PyPI 超时：`one-click-start.cmd` 默认走清华镜像（`https://pypi.tuna.tsinghua.edu.cn/simple`），可用 `-PipArg` 覆盖。
+- 修复 portable CPU 包缺少 `requirements-backend-gpu.txt`：`Assert-RequiredFiles` 对所有包都要求两份 requirements 齐全，portable 之前缺 gpu 那份，首次运行报 `[FAIL] Release package is incomplete`。
+- 修复打包生成的 zip 损坏：Windows bsdtar 的 `-a` 对 `.zip` 扩展名识别有 bug，改用 python zipfile 打包。
 
 ## 2026-06-22
 
