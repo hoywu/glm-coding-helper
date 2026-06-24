@@ -159,10 +159,12 @@ assert_required_files() {
 
 invoke_setup() {
     local setup_target="$1"
-    local force_recreate="${2:-0}"
+    local venv_py="$2"
+    local force_recreate="${3:-0}"
     local args=("scripts/setup_backend_linux.sh" "--target" "$setup_target")
 
-    if [ "$force_recreate" -eq 1 ]; then
+    # 与 Windows Invoke-Bootstrap 一致：外来/损坏 venv，或目标 python 已存在时先删再建。
+    if [ "$force_recreate" -eq 1 ] || { [ -n "$venv_py" ] && [ -e "$venv_py" ]; }; then
         echo "Existing backend environment failed portability/import checks. Recreating it..."
         args+=("--recreate")
     fi
@@ -217,7 +219,7 @@ fi
 if [ "$READY" -eq 0 ]; then
     echo "Backend environment is missing or incomplete. Installing $INSTALL_TARGET environment..."
     ensure_pypi_mirror_pip_args
-    if ! invoke_setup "$INSTALL_TARGET" "$NEEDS_RECREATE"; then
+    if ! invoke_setup "$INSTALL_TARGET" "$SELECTED_PY" "$NEEDS_RECREATE"; then
         SETUP_EXIT=1
     else
         SETUP_EXIT=0
@@ -234,7 +236,7 @@ if [ "$READY" -eq 0 ]; then
             INSTALL_TARGET="cpu"
             SELECTED_VENV="$CPU_VENV"
             SELECTED_PY="$CPU_PY"
-            if ! invoke_setup "cpu" 0; then
+            if ! invoke_setup "cpu" "$CPU_PY" 0; then
                 SETUP_EXIT=1
             else
                 SETUP_EXIT=0
@@ -260,7 +262,7 @@ fi
 # ── 4. 安装 CPU fallback 环境 ──────────────────────────────────
 if [ "$TARGET" = "auto" ] && [ "$INSTALL_TARGET" = "gpu" ] && ! test_python_imports "$CPU_PY" "$IMPORT_CODE"; then
     echo "CPU fallback environment is missing. Installing CPU environment for auto fallback..."
-    if ! invoke_setup "cpu" 0; then
+    if ! invoke_setup "cpu" "$CPU_PY" 0; then
         echo "[WARN] CPU fallback environment installation failed. Auto mode will still try GPU first." >&2
     fi
 fi
