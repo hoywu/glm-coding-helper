@@ -17,6 +17,8 @@
 #   ./scripts/setup_backend_linux.sh --skip-install       # 只创建 venv，不安装依赖
 #   ./scripts/setup_backend_linux.sh --no-smoke-test      # 跳过导入冒烟测试
 #   ./scripts/setup_backend_linux.sh --pip-arg -i --pip-arg https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# 未传 --pip-arg 时，会自动探测可用 PyPI 镜像（国内优先，与 Windows one-click 一致）。
 
 set -euo pipefail
 
@@ -96,6 +98,9 @@ if [ "$(uname -s)" != "Linux" ]; then
     echo "[错误] 此脚本仅支持 Linux。" >&2
     exit 1
 fi
+
+# shellcheck source=scripts/pypi_mirror.sh
+source "$SCRIPT_DIR/pypi_mirror.sh"
 
 has_uv() {
     command -v uv >/dev/null 2>&1
@@ -228,6 +233,10 @@ smoke_test() {
         "$venv_py" -c "import paddle; print('cuda_compiled=', paddle.is_compiled_with_cuda()); print('cuda_count=', paddle.device.cuda.device_count() if paddle.is_compiled_with_cuda() else 0)"
     fi
 }
+
+if [ "$SKIP_INSTALL" -eq 0 ]; then
+    ensure_pypi_mirror_pip_args
+fi
 
 for mode in "${SELECTED[@]}"; do
     if [ "$mode" = "gpu" ]; then

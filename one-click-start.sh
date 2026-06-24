@@ -6,6 +6,7 @@
 #
 # Linux 说明：默认 auto 模式会优先尝试 NVIDIA GPU；GPU 环境不可用时回退 CPU。
 #            如果系统中存在 uv，会优先用 uv 管理 Python 3.12、venv 和依赖安装。
+#            未传 --pip-arg 时，会自动探测可用 PyPI 镜像（国内优先）。
 
 set -euo pipefail
 
@@ -127,6 +128,9 @@ test_foreign_venv() {
     return 1
 }
 
+# shellcheck source=scripts/pypi_mirror.sh
+source "$SCRIPT_DIR/scripts/pypi_mirror.sh"
+
 assert_required_files() {
     local missing=()
     local required=(
@@ -212,6 +216,7 @@ fi
 
 if [ "$READY" -eq 0 ]; then
     echo "Backend environment is missing or incomplete. Installing $INSTALL_TARGET environment..."
+    ensure_pypi_mirror_pip_args
     if ! invoke_setup "$INSTALL_TARGET" "$NEEDS_RECREATE"; then
         SETUP_EXIT=1
     else
